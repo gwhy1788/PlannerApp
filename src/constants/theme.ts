@@ -1,0 +1,48 @@
+export const Colors = {
+  primary: '#5B5FEF',
+  primaryLight: '#EEF0FF',
+  background: '#F5F6FA',
+  surface: '#FFFFFF',
+  border: '#E8EAF0',
+  text: '#111827',
+  textMuted: '#6B7280',
+  success: '#10B981',
+  successLight: '#D1FAE5',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  white: '#FFFFFF',
+};
+
+export const CATEGORY_COLORS = [
+  '#5B5FEF',
+  '#10B981',
+  '#3B82F6',
+  '#F59E0B',
+  '#EF4444',
+  '#EC4899',
+  '#8B5CF6',
+  '#14B8A6',
+];
+
+export const ACTIVITY_ICONS = [
+  'checkmark-circle-outline',
+  'fitness-outline',
+  'book-outline',
+  'water-outline',
+  'bicycle-outline',
+  'heart-outline',
+  'leaf-outline',
+  'home-outline',
+  'briefcase-outline',
+  'musical-notes-outline',
+  'moon-outline',
+  'sunny-outline',
+  'cafe-outline',
+  'walk-outline',
+  'barbell-outline',
+  'pencil-outline',
+  'people-outline',
+  'restaurant-outline',
+  'medkit-outline',
+  'globe-outline',
+];
