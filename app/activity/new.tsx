@@ -9,7 +9,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { router } from 'expo-router';
@@ -44,7 +46,10 @@ export default function NewActivityScreen() {
   const [categoryId, setCategoryId]   = useState('');
   const [color, setColor]             = useState(Colors.primary);
   const [icon, setIcon]               = useState('checkmark-circle-outline');
-  const [reminderTime, setReminderTime] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderDate, setReminderDate] = useState(() => {
+    const d = new Date(); d.setHours(8, 0, 0, 0); return d;
+  });
 
   // Frequency
   const [freqType, setFreqType]           = useState<'periodic' | 'once'>('periodic');
@@ -97,7 +102,9 @@ export default function NewActivityScreen() {
       frequencyDayOfMonth: dayOfMonth,
       frequencyMonth: periodicType === 'quarterly' ? quarterMonth : yearlyMonth,
       targetDate,
-      reminderTime,
+      reminderTime: reminderEnabled
+        ? `${String(reminderDate.getHours()).padStart(2, '0')}:${String(reminderDate.getMinutes()).padStart(2, '0')}`
+        : '',
       color,
       icon,
       isActive: true,
@@ -340,15 +347,36 @@ export default function NewActivityScreen() {
           </Field>
 
           {/* ── Reminder ── */}
-          <Field label="Reminder time (optional)">
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 08:00 (24-hour)"
-              placeholderTextColor={Colors.textMuted}
-              value={reminderTime}
-              onChangeText={setReminderTime}
-              keyboardType="numbers-and-punctuation"
-            />
+          <Field label="Reminder">
+            <View style={styles.reminderRow}>
+              <View style={styles.reminderLeft}>
+                <Ionicons
+                  name={reminderEnabled ? 'alarm' : 'alarm-outline'}
+                  size={20}
+                  color={reminderEnabled ? color : Colors.textMuted}
+                />
+                <Text style={[styles.reminderLabel, reminderEnabled && { color: Colors.text }]}>
+                  {reminderEnabled
+                    ? new Date(reminderDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                    : 'No reminder'}
+                </Text>
+              </View>
+              <Switch
+                value={reminderEnabled}
+                onValueChange={setReminderEnabled}
+                trackColor={{ false: Colors.border, true: color }}
+                thumbColor={Colors.white}
+              />
+            </View>
+            {reminderEnabled && (
+              <DateTimePicker
+                value={reminderDate}
+                mode="time"
+                display="spinner"
+                onChange={(_event, date) => { if (date) setReminderDate(date); }}
+                style={styles.timePicker}
+              />
+            )}
           </Field>
 
           {/* ── Color ── */}
@@ -529,6 +557,15 @@ const styles = StyleSheet.create({
   domText: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
   domTextActive: { color: Colors.white },
 
+  reminderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.background, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  reminderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reminderLabel: { fontSize: 15, color: Colors.textMuted },
+  timePicker: { height: 130, marginTop: 4 },
   colorRow: { flexDirection: 'row', gap: 10 },
   colorDot: { width: 32, height: 32, borderRadius: 16 },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
