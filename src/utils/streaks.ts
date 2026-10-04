@@ -1,24 +1,68 @@
 import { Activity, ActivityLog } from '../types';
 import { toDateString, getDaysBetween } from './dates';
 
-export function isDueToday(activity: Activity, lastCompletionDate?: string): boolean {
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+export function isDueToday(activity: Activity): boolean {
   const today = new Date();
   const todayStr = toDateString(today);
   const dow = today.getDay();
+  const dom = today.getDate();
+  const month = today.getMonth();
 
-  switch (activity.frequencyType) {
+  if (activity.frequencyType === 'once') {
+    return activity.targetDate === todayStr;
+  }
+
+  // periodic
+  switch (activity.periodicType) {
     case 'daily':
       return true;
+
     case 'weekly':
       return (activity.frequencyDays ?? []).includes(dow);
-    case 'interval': {
-      const interval = activity.frequencyInterval ?? 1;
-      const base = lastCompletionDate ?? activity.createdAt.split('T')[0];
-      const daysSince = getDaysBetween(base, todayStr);
-      return daysSince >= interval;
+
+    case 'fortnightly': {
+      const selectedDow = (activity.frequencyDays ?? [])[0];
+      if (dow !== selectedDow) return false;
+      // Find first occurrence of selectedDow on or after creation date
+      const anchorStr = activity.createdAt.split('T')[0];
+      const anchor = new Date(anchorStr + 'T00:00:00');
+      while (anchor.getDay() !== selectedDow) {
+        anchor.setDate(anchor.getDate() + 1);
+      }
+      const daysSinceFirst = getDaysBetween(toDateString(anchor), todayStr);
+      return daysSinceFirst >= 0 && daysSinceFirst % 14 === 0;
     }
-    case 'once':
-      return activity.targetDate === todayStr;
+
+    case 'monthly': {
+      const target = activity.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(today.getFullYear(), month)
+        : activity.frequencyDayOfMonth;
+      return dom === target;
+    }
+
+    case 'quarterly': {
+      // frequencyMonth: 0 = first month of quarter (Jan/Apr/Jul/Oct)
+      //                 1 = second month of quarter (Feb/May/Aug/Nov)
+      //                 2 = third month of quarter  (Mar/Jun/Sep/Dec)
+      if (month % 3 !== activity.frequencyMonth) return false;
+      const target = activity.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(today.getFullYear(), month)
+        : activity.frequencyDayOfMonth;
+      return dom === target;
+    }
+
+    case 'yearly': {
+      if (month !== activity.frequencyMonth) return false;
+      const target = activity.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(today.getFullYear(), month)
+        : activity.frequencyDayOfMonth;
+      return dom === target;
+    }
+
     default:
       return false;
   }
@@ -31,12 +75,14 @@ export function calculateStreak(activity: Activity, logs: ActivityLog[]): number
   const today = new Date();
   const todayStr = toDateString(today);
 
-  if (activity.frequencyType === 'daily') {
+  if (activity.frequencyType === 'periodic' && activity.periodicType === 'daily') {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = toDateString(yesterday);
 
-    const startStr = logDates.has(todayStr) ? todayStr : logDates.has(yesterdayStr) ? yesterdayStr : null;
+    const startStr = logDates.has(todayStr) ? todayStr
+                   : logDates.has(yesterdayStr) ? yesterdayStr
+                   : null;
     if (!startStr) return 0;
 
     let streak = 0;
@@ -48,10 +94,9 @@ export function calculateStreak(activity: Activity, logs: ActivityLog[]): number
     return streak;
   }
 
-  if (activity.frequencyType === 'weekly') {
+  if (activity.frequencyType === 'periodic' && activity.periodicType === 'weekly') {
     const days = activity.frequencyDays ?? [];
     if (days.length === 0) return 0;
-
     let streak = 0;
     const cur = new Date(today);
     for (let i = 0; i < 365; i++) {
@@ -69,6 +114,7 @@ export function calculateStreak(activity: Activity, logs: ActivityLog[]): number
     return streak;
   }
 
+  // For all other types, return total completions as the streak indicator
   return logs.length;
 }
 

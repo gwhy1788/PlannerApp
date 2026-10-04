@@ -50,9 +50,7 @@ export default function TodayScreen() {
     const results: TodayItem[] = [];
     for (const activity of activities) {
       const logs = await getLogsForActivity(db, activity.id, 90);
-      const lastLog = logs[0];
-      const lastDate = lastLog?.completedAt.split('T')[0];
-      if (!isDueToday(activity, lastDate)) continue;
+      if (!isDueToday(activity)) continue;
 
       const todayLog = await getTodayLogForActivity(db, activity.id);
       const streak = calculateStreak(activity, logs);

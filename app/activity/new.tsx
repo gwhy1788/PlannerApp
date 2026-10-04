@@ -15,28 +15,46 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getCategories, upsertActivity } from '../../src/db/database';
-import { Activity, Category } from '../../src/types';
+import { Activity, Category, PeriodicType } from '../../src/types';
 import { Colors, CATEGORY_COLORS, ACTIVITY_ICONS } from '../../src/constants/theme';
-import { DAY_SHORT } from '../../src/utils/dates';
+import { DAY_SHORT, MONTH_FULL, MONTH_SHORT } from '../../src/utils/dates';
 
 function makeId() {
   return `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const PERIODIC_TYPES: { key: PeriodicType; label: string }[] = [
+  { key: 'daily',       label: 'Daily' },
+  { key: 'weekly',      label: 'Weekly' },
+  { key: 'fortnightly', label: 'Fortnightly' },
+  { key: 'monthly',     label: 'Monthly' },
+  { key: 'quarterly',   label: 'Quarterly' },
+  { key: 'yearly',      label: 'Yearly' },
+];
+
+const QUARTER_LABELS = ['1st month (Jan/Apr/Jul/Oct)', '2nd month (Feb/May/Aug/Nov)', '3rd month (Mar/Jun/Sep/Dec)'];
+
 export default function NewActivityScreen() {
   const db = useSQLiteContext();
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [name, setName] = useState('');
+  // Basic fields
+  const [name, setName]               = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [frequencyType, setFrequencyType] = useState<Activity['frequencyType']>('daily');
-  const [frequencyDays, setFrequencyDays] = useState<number[]>([]);
-  const [frequencyInterval, setFrequencyInterval] = useState('2');
-  const [targetDate, setTargetDate] = useState('');
+  const [categoryId, setCategoryId]   = useState('');
+  const [color, setColor]             = useState(Colors.primary);
+  const [icon, setIcon]               = useState('checkmark-circle-outline');
   const [reminderTime, setReminderTime] = useState('');
-  const [color, setColor] = useState(Colors.primary);
-  const [icon, setIcon] = useState('checkmark-circle-outline');
+
+  // Frequency
+  const [freqType, setFreqType]           = useState<'periodic' | 'once'>('periodic');
+  const [periodicType, setPeriodicType]   = useState<PeriodicType>('daily');
+  const [weeklyDays, setWeeklyDays]       = useState<number[]>([]);
+  const [fortnightDay, setFortnightDay]   = useState<number>(1); // Mon default
+  const [dayOfMonth, setDayOfMonth]       = useState<number>(1);
+  const [quarterMonth, setQuarterMonth]   = useState<number>(0);
+  const [yearlyMonth, setYearlyMonth]     = useState<number>(0);
+  const [targetDate, setTargetDate]       = useState('');
 
   useEffect(() => {
     getCategories(db).then(cats => {
@@ -48,34 +66,34 @@ export default function NewActivityScreen() {
     });
   }, [db]);
 
-  const toggleDay = (day: number) => {
-    setFrequencyDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
-    );
+  const toggleWeeklyDay = (d: number) =>
+    setWeeklyDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+
+  const validate = (): string | null => {
+    if (!name.trim()) return 'Please enter a name for this activity.';
+    if (freqType === 'periodic' && periodicType === 'weekly' && weeklyDays.length === 0)
+      return 'Please select at least one day of the week.';
+    if (freqType === 'once' && !targetDate)
+      return 'Please enter a target date (YYYY-MM-DD).';
+    return null;
   };
 
   const save = async () => {
-    if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter a name for this activity.');
-      return;
-    }
-    if (frequencyType === 'weekly' && frequencyDays.length === 0) {
-      Alert.alert('Select days', 'Please select at least one day of the week.');
-      return;
-    }
-    if (frequencyType === 'once' && !targetDate) {
-      Alert.alert('Date required', 'Please enter a target date (YYYY-MM-DD).');
-      return;
-    }
+    const err = validate();
+    if (err) { Alert.alert('Required', err); return; }
 
     const activity: Activity = {
       id: makeId(),
       name: name.trim(),
       description: description.trim(),
       categoryId,
-      frequencyType,
-      frequencyDays,
-      frequencyInterval: parseInt(frequencyInterval, 10) || 1,
+      frequencyType: freqType,
+      periodicType,
+      frequencyDays: periodicType === 'weekly' ? weeklyDays
+                   : periodicType === 'fortnightly' ? [fortnightDay]
+                   : [],
+      frequencyDayOfMonth: dayOfMonth,
+      frequencyMonth: periodicType === 'quarterly' ? quarterMonth : yearlyMonth,
       targetDate,
       reminderTime,
       color,
@@ -90,11 +108,7 @@ export default function NewActivityScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-        {/* Header */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
             <Text style={styles.cancelText}>Cancel</Text>
@@ -106,7 +120,8 @@ export default function NewActivityScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Name */}
+
+          {/* ── Name ── */}
           <Field label="Name">
             <TextInput
               style={styles.input}
@@ -118,7 +133,7 @@ export default function NewActivityScreen() {
             />
           </Field>
 
-          {/* Description */}
+          {/* ── Description ── */}
           <Field label="Description (optional)">
             <TextInput
               style={[styles.input, styles.inputMulti]}
@@ -131,75 +146,158 @@ export default function NewActivityScreen() {
             />
           </Field>
 
-          {/* Category */}
+          {/* ── Category ── */}
           <Field label="Category">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {categories.map(cat => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.chip, categoryId === cat.id && { backgroundColor: cat.color }]}
+                  style={[styles.chip, categoryId === cat.id && { backgroundColor: cat.color, borderColor: cat.color }]}
                   onPress={() => { setCategoryId(cat.id); setColor(cat.color); }}
                 >
-                  <Ionicons
-                    name={cat.icon as any}
-                    size={14}
-                    color={categoryId === cat.id ? '#fff' : Colors.textMuted}
-                  />
-                  <Text style={[styles.chipText, categoryId === cat.id && styles.chipTextActive]}>
-                    {cat.name}
-                  </Text>
+                  <Ionicons name={cat.icon as any} size={14} color={categoryId === cat.id ? '#fff' : Colors.textMuted} />
+                  <Text style={[styles.chipText, categoryId === cat.id && styles.chipTextActive]}>{cat.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </Field>
 
-          {/* Frequency */}
+          {/* ── Frequency ── */}
           <Field label="Frequency">
+            {/* Top-level: Periodic vs One-off */}
             <View style={styles.segmented}>
-              {(['daily', 'weekly', 'interval', 'once'] as const).map(t => (
+              {(['periodic', 'once'] as const).map(t => (
                 <TouchableOpacity
                   key={t}
-                  style={[styles.seg, frequencyType === t && styles.segActive]}
-                  onPress={() => setFrequencyType(t)}
+                  style={[styles.seg, freqType === t && styles.segActive]}
+                  onPress={() => setFreqType(t)}
                 >
-                  <Text style={[styles.segText, frequencyType === t && styles.segTextActive]}>
-                    {t === 'daily' ? 'Daily' : t === 'weekly' ? 'Weekly' : t === 'interval' ? 'Every N days' : 'One-off'}
+                  <Text style={[styles.segText, freqType === t && styles.segTextActive]}>
+                    {t === 'periodic' ? 'Periodic' : 'One-off'}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {frequencyType === 'weekly' && (
-              <View style={styles.daysRow}>
-                {DAY_SHORT.map((d, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={[styles.dayBtn, frequencyDays.includes(i) && { backgroundColor: color }]}
-                    onPress={() => toggleDay(i)}
-                  >
-                    <Text style={[styles.dayBtnText, frequencyDays.includes(i) && styles.dayBtnTextActive]}>
-                      {d}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {freqType === 'periodic' && (
+              <View style={styles.periodicBlock}>
+                {/* Sub-type chips */}
+                <View style={styles.periodicChips}>
+                  {PERIODIC_TYPES.map(({ key, label }) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.periodChip, periodicType === key && { backgroundColor: color, borderColor: color }]}
+                      onPress={() => setPeriodicType(key)}
+                    >
+                      <Text style={[styles.periodChipText, periodicType === key && styles.periodChipTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* ── Config per periodic type ── */}
+
+                {/* Daily: no config */}
+                {periodicType === 'daily' && (
+                  <View style={styles.configNote}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} />
+                    <Text style={styles.configNoteText}>Appears every day</Text>
+                  </View>
+                )}
+
+                {/* Weekly: multi-select days */}
+                {periodicType === 'weekly' && (
+                  <View style={styles.configBlock}>
+                    <Text style={styles.configLabel}>Which days?</Text>
+                    <View style={styles.daysRow}>
+                      {DAY_SHORT.map((d, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.dayBtn, weeklyDays.includes(i) && { backgroundColor: color, borderColor: color }]}
+                          onPress={() => toggleWeeklyDay(i)}
+                        >
+                          <Text style={[styles.dayBtnText, weeklyDays.includes(i) && styles.dayBtnTextActive]}>{d}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Fortnightly: single day picker */}
+                {periodicType === 'fortnightly' && (
+                  <View style={styles.configBlock}>
+                    <Text style={styles.configLabel}>Which day of the week?</Text>
+                    <View style={styles.daysRow}>
+                      {DAY_SHORT.map((d, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.dayBtn, fortnightDay === i && { backgroundColor: color, borderColor: color }]}
+                          onPress={() => setFortnightDay(i)}
+                        >
+                          <Text style={[styles.dayBtnText, fortnightDay === i && styles.dayBtnTextActive]}>{d}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={styles.configNote}>
+                      <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
+                      <Text style={styles.configNoteText}>Every other {DAY_SHORT[fortnightDay]}, starting this week</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Monthly: day of month */}
+                {periodicType === 'monthly' && (
+                  <View style={styles.configBlock}>
+                    <Text style={styles.configLabel}>Which day of the month?</Text>
+                    <DayOfMonthPicker value={dayOfMonth} color={color} onChange={setDayOfMonth} />
+                  </View>
+                )}
+
+                {/* Quarterly: position in quarter + day */}
+                {periodicType === 'quarterly' && (
+                  <View style={styles.configBlock}>
+                    <Text style={styles.configLabel}>Which month in the quarter?</Text>
+                    {QUARTER_LABELS.map((label, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[styles.radioRow, quarterMonth === i && { borderColor: color }]}
+                        onPress={() => setQuarterMonth(i)}
+                      >
+                        <View style={[styles.radio, quarterMonth === i && { backgroundColor: color, borderColor: color }]}>
+                          {quarterMonth === i && <View style={styles.radioDot} />}
+                        </View>
+                        <Text style={styles.radioLabel}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <Text style={[styles.configLabel, { marginTop: 12 }]}>Which day of that month?</Text>
+                    <DayOfMonthPicker value={dayOfMonth} color={color} onChange={setDayOfMonth} />
+                  </View>
+                )}
+
+                {/* Yearly: month + day */}
+                {periodicType === 'yearly' && (
+                  <View style={styles.configBlock}>
+                    <Text style={styles.configLabel}>Which month?</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {MONTH_SHORT.map((m, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.monthChip, yearlyMonth === i && { backgroundColor: color, borderColor: color }]}
+                          onPress={() => setYearlyMonth(i)}
+                        >
+                          <Text style={[styles.monthChipText, yearlyMonth === i && styles.periodChipTextActive]}>{m}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    <Text style={[styles.configLabel, { marginTop: 12 }]}>Which day of that month?</Text>
+                    <DayOfMonthPicker value={dayOfMonth} color={color} onChange={setDayOfMonth} />
+                  </View>
+                )}
               </View>
             )}
 
-            {frequencyType === 'interval' && (
-              <View style={styles.intervalRow}>
-                <Text style={styles.intervalLabel}>Every</Text>
-                <TextInput
-                  style={styles.intervalInput}
-                  value={frequencyInterval}
-                  onChangeText={setFrequencyInterval}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                />
-                <Text style={styles.intervalLabel}>days</Text>
-              </View>
-            )}
-
-            {frequencyType === 'once' && (
+            {freqType === 'once' && (
               <TextInput
                 style={[styles.input, { marginTop: 10 }]}
                 placeholder="Target date (YYYY-MM-DD)"
@@ -211,11 +309,11 @@ export default function NewActivityScreen() {
             )}
           </Field>
 
-          {/* Reminder */}
+          {/* ── Reminder ── */}
           <Field label="Reminder time (optional)">
             <TextInput
               style={styles.input}
-              placeholder="e.g. 08:00 (24-hour format)"
+              placeholder="e.g. 08:00 (24-hour)"
               placeholderTextColor={Colors.textMuted}
               value={reminderTime}
               onChangeText={setReminderTime}
@@ -223,7 +321,7 @@ export default function NewActivityScreen() {
             />
           </Field>
 
-          {/* Color */}
+          {/* ── Color ── */}
           <Field label="Color">
             <View style={styles.colorRow}>
               {CATEGORY_COLORS.map(c => (
@@ -236,9 +334,9 @@ export default function NewActivityScreen() {
             </View>
           </Field>
 
-          {/* Icon */}
+          {/* ── Icon ── */}
           <Field label="Icon">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {ACTIVITY_ICONS.map(ic => (
                 <TouchableOpacity
                   key={ic}
@@ -251,12 +349,14 @@ export default function NewActivityScreen() {
             </ScrollView>
           </Field>
 
-          <View style={{ height: 24 }} />
+          <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -267,106 +367,142 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function DayOfMonthPicker({ value, color, onChange }: {
+  value: number; color: string; onChange: (d: number) => void;
+}) {
+  const days = Array.from({ length: 28 }, (_, i) => i + 1);
+  return (
+    <View style={styles.domGrid}>
+      {days.map(d => (
+        <TouchableOpacity
+          key={d}
+          style={[styles.domCell, value === d && { backgroundColor: color, borderColor: color }]}
+          onPress={() => onChange(d)}
+        >
+          <Text style={[styles.domText, value === d && styles.domTextActive]}>{d}</Text>
+        </TouchableOpacity>
+      ))}
+      <TouchableOpacity
+        style={[styles.domCellLast, value === -1 && { backgroundColor: color, borderColor: color }]}
+        onPress={() => onChange(-1)}
+      >
+        <Text style={[styles.domText, value === -1 && styles.domTextActive]}>Last</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   headerTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
   cancelBtn: { padding: 4 },
   cancelText: { fontSize: 16, color: Colors.textMuted },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  saveBtn: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
   saveText: { fontSize: 15, fontWeight: '600', color: Colors.white },
+
   scroll: { padding: 20, gap: 20 },
   field: { gap: 8 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+
   input: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.background, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: Colors.text,
+    borderWidth: 1, borderColor: Colors.border,
   },
   inputMulti: { minHeight: 70, textAlignVertical: 'top' },
-  chipScroll: { flexGrow: 0 },
+
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.background,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.background, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8,
+    marginRight: 8, borderWidth: 1, borderColor: Colors.border,
   },
   chipText: { fontSize: 13, color: Colors.textMuted, fontWeight: '500' },
   chipTextActive: { color: Colors.white },
+
+  // Frequency
   segmented: {
-    flexDirection: 'row',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flexDirection: 'row', backgroundColor: Colors.background,
+    borderRadius: 12, padding: 4, borderWidth: 1, borderColor: Colors.border,
   },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
+  seg: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
   segActive: { backgroundColor: Colors.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  segText: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
+  segText: { fontSize: 14, color: Colors.textMuted, fontWeight: '500' },
   segTextActive: { color: Colors.text, fontWeight: '700' },
-  daysRow: { flexDirection: 'row', gap: 6, marginTop: 10, justifyContent: 'space-between' },
+
+  periodicBlock: { gap: 14, marginTop: 12 },
+  periodicChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  periodChip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background,
+  },
+  periodChipText: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
+  periodChipTextActive: { color: Colors.white },
+
+  configBlock: { gap: 10 },
+  configLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  configNote: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  configNoteText: { fontSize: 13, color: Colors.textMuted },
+
+  daysRow: { flexDirection: 'row', gap: 5, justifyContent: 'space-between' },
   dayBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flex: 1, paddingVertical: 9, borderRadius: 10,
+    alignItems: 'center', backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border,
   },
   dayBtnText: { fontSize: 11, fontWeight: '600', color: Colors.textMuted },
   dayBtnTextActive: { color: Colors.white },
-  intervalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
-  intervalLabel: { fontSize: 15, color: Colors.text },
-  intervalInput: {
+
+  radioRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.background,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    width: 70,
-    textAlign: 'center',
   },
+  radio: {
+    width: 20, height: 20, borderRadius: 10,
+    borderWidth: 2, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.white },
+  radioLabel: { fontSize: 13, color: Colors.text, flex: 1 },
+
+  monthChip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    marginRight: 8, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  monthChipText: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
+
+  domGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  domCell: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background,
+  },
+  domCellLast: {
+    paddingHorizontal: 10, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background,
+  },
+  domText: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
+  domTextActive: { color: Colors.white },
+
   colorRow: { flexDirection: 'row', gap: 10 },
   colorDot: { width: 32, height: 32, borderRadius: 16 },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
+
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 8, borderWidth: 1, borderColor: Colors.border,
   },
 });

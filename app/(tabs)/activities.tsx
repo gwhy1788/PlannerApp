@@ -119,12 +119,7 @@ export default function ActivitiesScreen() {
         )}
         renderItem={({ item }) => {
           const { activity, isCompletedToday, streak } = item;
-          const freq = frequencyLabel(
-            activity.frequencyType,
-            activity.frequencyDays,
-            activity.frequencyInterval,
-            activity.targetDate
-          );
+          const freq = frequencyLabel(activity);
           const dueToday = isDueToday(activity);
 
           return (

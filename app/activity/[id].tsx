@@ -96,12 +96,7 @@ export default function ActivityDetailScreen() {
     );
   }
 
-  const freqLabel = frequencyLabel(
-    activity.frequencyType,
-    activity.frequencyDays,
-    activity.frequencyInterval,
-    activity.targetDate
-  );
+  const freqLabel = frequencyLabel(activity);
 
   const today = toDateString(new Date());
   const last28 = Array.from({ length: 28 }, (_, i) => subtractDays(today, 27 - i));
