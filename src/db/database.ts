@@ -6,19 +6,7 @@ const SCHEMA_VERSION = 3;
 export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
 
-  const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-  const currentVersion = versionRow?.user_version ?? 0;
-
-  // Full reset for pre-v2 (first install or legacy schema)
-  if (currentVersion < 2) {
-    await db.execAsync(`
-      DROP TABLE IF EXISTS activity_logs;
-      DROP TABLE IF EXISTS activities;
-      DROP TABLE IF EXISTS categories;
-    `);
-  }
-
-  // Create tables (safe to run on any version — IF NOT EXISTS)
+  // Create tables for a fresh install
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY NOT NULL,
@@ -54,15 +42,22 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
     );
   `);
 
-  // Incremental migration: v2 → v3 adds frequency_days_2
-  if (currentVersion === 2) {
-    await db.execAsync(
-      `ALTER TABLE activities ADD COLUMN frequency_days_2 TEXT NOT NULL DEFAULT '[]';`
-    );
-  }
+  // Column-level migrations: add any columns missing from older installs
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(activities)');
+  const colNames = new Set(cols.map(c => c.name));
 
-  // Stamp the current schema version
-  await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+  if (!colNames.has('periodic_type')) {
+    await db.execAsync(`ALTER TABLE activities ADD COLUMN periodic_type TEXT NOT NULL DEFAULT 'daily';`);
+  }
+  if (!colNames.has('frequency_days_2')) {
+    await db.execAsync(`ALTER TABLE activities ADD COLUMN frequency_days_2 TEXT NOT NULL DEFAULT '[]';`);
+  }
+  if (!colNames.has('frequency_day_of_month')) {
+    await db.execAsync(`ALTER TABLE activities ADD COLUMN frequency_day_of_month INTEGER NOT NULL DEFAULT 1;`);
+  }
+  if (!colNames.has('frequency_month')) {
+    await db.execAsync(`ALTER TABLE activities ADD COLUMN frequency_month INTEGER NOT NULL DEFAULT 0;`);
+  }
 
   const existing = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories'
