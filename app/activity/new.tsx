@@ -50,7 +50,8 @@ export default function NewActivityScreen() {
   const [freqType, setFreqType]           = useState<'periodic' | 'once'>('periodic');
   const [periodicType, setPeriodicType]   = useState<PeriodicType>('daily');
   const [weeklyDays, setWeeklyDays]       = useState<number[]>([]);
-  const [fortnightDay, setFortnightDay]   = useState<number>(1); // Mon default
+  const [fortnightWeek1, setFortnightWeek1] = useState<number[]>([]);
+  const [fortnightWeek2, setFortnightWeek2] = useState<number[]>([]);
   const [dayOfMonth, setDayOfMonth]       = useState<number>(1);
   const [quarterMonth, setQuarterMonth]   = useState<number>(0);
   const [yearlyMonth, setYearlyMonth]     = useState<number>(0);
@@ -90,8 +91,9 @@ export default function NewActivityScreen() {
       frequencyType: freqType,
       periodicType,
       frequencyDays: periodicType === 'weekly' ? weeklyDays
-                   : periodicType === 'fortnightly' ? [fortnightDay]
+                   : periodicType === 'fortnightly' ? fortnightWeek1
                    : [],
+      frequencyDays2: periodicType === 'fortnightly' ? fortnightWeek2 : [],
       frequencyDayOfMonth: dayOfMonth,
       frequencyMonth: periodicType === 'quarterly' ? quarterMonth : yearlyMonth,
       targetDate,
@@ -224,24 +226,52 @@ export default function NewActivityScreen() {
                   </View>
                 )}
 
-                {/* Fortnightly: single day picker */}
+                {/* Fortnightly: separate day pickers for Week 1 and Week 2 */}
                 {periodicType === 'fortnightly' && (
                   <View style={styles.configBlock}>
-                    <Text style={styles.configLabel}>Which day of the week?</Text>
+                    <View style={styles.fortnightWeekHeader}>
+                      <View style={[styles.weekLabel, { backgroundColor: color + '22' }]}>
+                        <Text style={[styles.weekLabelText, { color }]}>Week 1</Text>
+                      </View>
+                      <Text style={styles.configLabel}>Which days?</Text>
+                    </View>
                     <View style={styles.daysRow}>
                       {DAY_SHORT.map((d, i) => (
                         <TouchableOpacity
                           key={i}
-                          style={[styles.dayBtn, fortnightDay === i && { backgroundColor: color, borderColor: color }]}
-                          onPress={() => setFortnightDay(i)}
+                          style={[styles.dayBtn, fortnightWeek1.includes(i) && { backgroundColor: color, borderColor: color }]}
+                          onPress={() => setFortnightWeek1(prev =>
+                            prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort()
+                          )}
                         >
-                          <Text style={[styles.dayBtnText, fortnightDay === i && styles.dayBtnTextActive]}>{d}</Text>
+                          <Text style={[styles.dayBtnText, fortnightWeek1.includes(i) && styles.dayBtnTextActive]}>{d}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
+
+                    <View style={[styles.fortnightWeekHeader, { marginTop: 12 }]}>
+                      <View style={[styles.weekLabel, { backgroundColor: color + '22' }]}>
+                        <Text style={[styles.weekLabelText, { color }]}>Week 2</Text>
+                      </View>
+                      <Text style={styles.configLabel}>Which days?</Text>
+                    </View>
+                    <View style={styles.daysRow}>
+                      {DAY_SHORT.map((d, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.dayBtn, fortnightWeek2.includes(i) && { backgroundColor: color, borderColor: color }]}
+                          onPress={() => setFortnightWeek2(prev =>
+                            prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort()
+                          )}
+                        >
+                          <Text style={[styles.dayBtnText, fortnightWeek2.includes(i) && styles.dayBtnTextActive]}>{d}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
                     <View style={styles.configNote}>
                       <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
-                      <Text style={styles.configNoteText}>Every other {DAY_SHORT[fortnightDay]}, starting this week</Text>
+                      <Text style={styles.configNoteText}>2-week cycle starts from the day you save this activity</Text>
                     </View>
                   </View>
                 )}
@@ -453,6 +483,9 @@ const styles = StyleSheet.create({
   configNoteText: { fontSize: 13, color: Colors.textMuted },
 
   daysRow: { flexDirection: 'row', gap: 5, justifyContent: 'space-between' },
+  fortnightWeekHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  weekLabel: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  weekLabelText: { fontSize: 12, fontWeight: '700' },
   dayBtn: {
     flex: 1, paddingVertical: 9, borderRadius: 10,
     alignItems: 'center', backgroundColor: Colors.background,

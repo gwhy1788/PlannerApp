@@ -25,16 +25,16 @@ export function isDueToday(activity: Activity): boolean {
       return (activity.frequencyDays ?? []).includes(dow);
 
     case 'fortnightly': {
-      const selectedDow = (activity.frequencyDays ?? [])[0];
-      if (dow !== selectedDow) return false;
-      // Find first occurrence of selectedDow on or after creation date
+      // Determine which week of the 2-week cycle today falls in,
+      // anchored to the activity's creation date.
       const anchorStr = activity.createdAt.split('T')[0];
-      const anchor = new Date(anchorStr + 'T00:00:00');
-      while (anchor.getDay() !== selectedDow) {
-        anchor.setDate(anchor.getDate() + 1);
-      }
-      const daysSinceFirst = getDaysBetween(toDateString(anchor), todayStr);
-      return daysSinceFirst >= 0 && daysSinceFirst % 14 === 0;
+      const daysSinceAnchor = getDaysBetween(anchorStr, todayStr);
+      if (daysSinceAnchor < 0) return false;
+      const weekInCycle = Math.floor(daysSinceAnchor / 7) % 2; // 0 = week 1, 1 = week 2
+      const daysForThisWeek = weekInCycle === 0
+        ? (activity.frequencyDays ?? [])
+        : (activity.frequencyDays2 ?? []);
+      return daysForThisWeek.includes(dow);
     }
 
     case 'monthly': {

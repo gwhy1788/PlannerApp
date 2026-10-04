@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Activity, ActivityLog, Category } from '../types';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -34,6 +34,7 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       frequency_type TEXT NOT NULL DEFAULT 'periodic',
       periodic_type TEXT NOT NULL DEFAULT 'daily',
       frequency_days TEXT NOT NULL DEFAULT '[]',
+      frequency_days_2 TEXT NOT NULL DEFAULT '[]',
       frequency_day_of_month INTEGER NOT NULL DEFAULT 1,
       frequency_month INTEGER NOT NULL DEFAULT 0,
       target_date TEXT NOT NULL DEFAULT '',
@@ -92,7 +93,8 @@ export async function upsertCategory(db: SQLite.SQLiteDatabase, cat: Category): 
 
 type ActivityRow = {
   id: string; name: string; description: string; category_id: string;
-  frequency_type: string; periodic_type: string; frequency_days: string;
+  frequency_type: string; periodic_type: string;
+  frequency_days: string; frequency_days_2: string;
   frequency_day_of_month: number; frequency_month: number;
   target_date: string; reminder_time: string; color: string; icon: string;
   is_active: number; created_at: string;
@@ -107,6 +109,7 @@ function rowToActivity(r: ActivityRow): Activity {
     frequencyType: r.frequency_type as Activity['frequencyType'],
     periodicType: (r.periodic_type ?? 'daily') as Activity['periodicType'],
     frequencyDays: JSON.parse(r.frequency_days || '[]'),
+    frequencyDays2: JSON.parse(r.frequency_days_2 || '[]'),
     frequencyDayOfMonth: r.frequency_day_of_month ?? 1,
     frequencyMonth: r.frequency_month ?? 0,
     targetDate: r.target_date,
@@ -140,13 +143,14 @@ export async function upsertActivity(
   await db.runAsync(
     `INSERT OR REPLACE INTO activities
        (id, name, description, category_id, frequency_type, periodic_type,
-        frequency_days, frequency_day_of_month, frequency_month,
+        frequency_days, frequency_days_2, frequency_day_of_month, frequency_month,
         target_date, reminder_time, color, icon, is_active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       a.id, a.name, a.description, a.categoryId,
       a.frequencyType, a.periodicType,
       JSON.stringify(a.frequencyDays),
+      JSON.stringify(a.frequencyDays2),
       a.frequencyDayOfMonth, a.frequencyMonth,
       a.targetDate, a.reminderTime,
       a.color, a.icon, a.isActive ? 1 : 0, a.createdAt,

@@ -17,7 +17,8 @@ export interface Activity {
   frequencyType: FrequencyType;       // 'periodic' | 'once'
   periodicType: PeriodicType;         // only used when frequencyType === 'periodic'
 
-  frequencyDays: number[];            // weekly/fortnightly: day(s) of week [0=Sun..6=Sat]
+  frequencyDays: number[];            // weekly/fortnightly week 1: day(s) of week [0=Sun..6=Sat]
+  frequencyDays2: number[];           // fortnightly week 2: day(s) of week
   frequencyDayOfMonth: number;        // monthly/quarterly/yearly: 1-28, or -1 = last day
   frequencyMonth: number;             // quarterly: 0-2 (position in quarter); yearly: 0-11
 

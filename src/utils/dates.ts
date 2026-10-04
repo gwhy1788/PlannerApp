@@ -73,8 +73,9 @@ export function frequencyLabel(activity: Activity): string {
     }
 
     case 'fortnightly': {
-      const day = DAY_FULL[(activity.frequencyDays ?? [])[0]] ?? 'day';
-      return `Every other ${day}`;
+      const w1 = (activity.frequencyDays ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
+      const w2 = (activity.frequencyDays2 ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
+      return `Fortnightly · Wk1: ${w1} / Wk2: ${w2}`;
     }
 
     case 'monthly':
