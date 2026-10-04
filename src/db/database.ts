@@ -4,10 +4,13 @@ import { Activity, ActivityLog, Category } from '../types';
 const SCHEMA_VERSION = 3;
 
 export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.execAsync('PRAGMA journal_mode = WAL;');
+
   const versionRow = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const currentVersion = versionRow?.user_version ?? 0;
 
-  if (currentVersion < SCHEMA_VERSION) {
+  // Full reset for pre-v2 (first install or legacy schema)
+  if (currentVersion < 2) {
     await db.execAsync(`
       DROP TABLE IF EXISTS activity_logs;
       DROP TABLE IF EXISTS activities;
@@ -15,10 +18,8 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
     `);
   }
 
+  // Create tables (safe to run on any version — IF NOT EXISTS)
   await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA user_version = ${SCHEMA_VERSION};
-
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
@@ -52,6 +53,16 @@ export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       note TEXT NOT NULL DEFAULT ''
     );
   `);
+
+  // Incremental migration: v2 → v3 adds frequency_days_2
+  if (currentVersion === 2) {
+    await db.execAsync(
+      `ALTER TABLE activities ADD COLUMN frequency_days_2 TEXT NOT NULL DEFAULT '[]';`
+    );
+  }
+
+  // Stamp the current schema version
+  await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
 
   const existing = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories'
