@@ -60,7 +60,8 @@ export default function NewActivityScreen() {
   const [dayOfMonth, setDayOfMonth]       = useState<number>(1);
   const [quarterMonth, setQuarterMonth]   = useState<number>(0);
   const [yearlyMonth, setYearlyMonth]     = useState<number>(0);
-  const [targetDate, setTargetDate]       = useState('');
+  const [targetDate, setTargetDate]       = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     getCategories(db).then(cats => {
@@ -80,7 +81,7 @@ export default function NewActivityScreen() {
     if (freqType === 'periodic' && periodicType === 'weekly' && weeklyDays.length === 0)
       return 'Please select at least one day of the week.';
     if (freqType === 'once' && !targetDate)
-      return 'Please enter a target date (YYYY-MM-DD).';
+      return 'Please select a target date.';
     return null;
   };
 
@@ -101,7 +102,9 @@ export default function NewActivityScreen() {
       frequencyDays2: periodicType === 'fortnightly' ? fortnightWeek2 : [],
       frequencyDayOfMonth: dayOfMonth,
       frequencyMonth: periodicType === 'quarterly' ? quarterMonth : yearlyMonth,
-      targetDate,
+      targetDate: targetDate
+        ? `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+        : '',
       reminderTime: reminderEnabled
         ? `${String(reminderDate.getHours()).padStart(2, '0')}:${String(reminderDate.getMinutes()).padStart(2, '0')}`
         : '',
@@ -335,14 +338,43 @@ export default function NewActivityScreen() {
             )}
 
             {freqType === 'once' && (
-              <TextInput
-                style={[styles.input, { marginTop: 10 }]}
-                placeholder="Target date (YYYY-MM-DD)"
-                placeholderTextColor={Colors.textMuted}
-                value={targetDate}
-                onChangeText={setTargetDate}
-                keyboardType="numbers-and-punctuation"
-              />
+              <View style={{ marginTop: 10, gap: 4 }}>
+                <TouchableOpacity
+                  style={styles.dateRow}
+                  onPress={() => setShowDatePicker(p => !p)}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={targetDate ? color : Colors.textMuted}
+                  />
+                  <Text style={[styles.dateLabel, targetDate ? { color: Colors.text } : {}]}>
+                    {targetDate
+                      ? targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })
+                      : 'Select a date'}
+                  </Text>
+                  <Ionicons
+                    name={showDatePicker ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.textMuted}
+                  />
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={targetDate ?? new Date()}
+                    mode="date"
+                    display="inline"
+                    minimumDate={new Date()}
+                    accentColor={color}
+                    onChange={(_event, date) => {
+                      if (date) {
+                        setTargetDate(date);
+                        setShowDatePicker(false);
+                      }
+                    }}
+                  />
+                )}
+              </View>
             )}
           </Field>
 
@@ -566,6 +598,13 @@ const styles = StyleSheet.create({
   reminderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   reminderLabel: { fontSize: 15, color: Colors.textMuted },
   timePicker: { height: 130, marginTop: 4 },
+  dateRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.background, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  dateLabel: { flex: 1, fontSize: 15, color: Colors.textMuted },
   colorRow: { flexDirection: 'row', gap: 10 },
   colorDot: { width: 32, height: 32, borderRadius: 16 },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
