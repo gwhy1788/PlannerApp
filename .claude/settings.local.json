@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Set-Location \"C:\\\\Users\\\\grant\\\\OneDrive\\\\Documents\\\\Development\\\\Projects\\\\PlannerApp\"; npx expo start --tunnel 2>&1 | Select-Object -First 5)"
-    ]
-  }
-}
