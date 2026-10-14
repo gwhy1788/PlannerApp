@@ -25,18 +25,27 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
+          title: 'Day',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'today' : 'today-outline'} size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="activities"
+        name="browse"
         options={{
-          title: 'Activities',
+          title: 'Browse',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'list' : 'list-outline'} size={22} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="projects"
+        options={{
+          title: 'Projects',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'folder-open' : 'folder-open-outline'} size={22} color={color} />
           ),
         }}
       />

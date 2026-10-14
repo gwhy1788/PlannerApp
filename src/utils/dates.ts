@@ -1,4 +1,4 @@
-import { Activity } from '../types';
+import { ScheduleItem } from '../types';
 
 export function toDateString(date: Date): string {
   const y = date.getFullYear();
@@ -36,6 +36,12 @@ export function subtractDays(dateStr: string, n: number): string {
   return toDateString(d);
 }
 
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toDateString(d);
+}
+
 export const DAY_SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const DAY_FULL   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -55,17 +61,17 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function frequencyLabel(activity: Activity): string {
-  if (activity.frequencyType === 'once') {
-    return activity.targetDate ? `Due ${formatDisplayDate(activity.targetDate)}` : 'One-off';
+export function frequencyLabel(item: ScheduleItem): string {
+  if (!item.isRecurring) {
+    return item.targetDate ? `Due ${formatDisplayDate(item.targetDate)}` : 'One-off';
   }
 
-  switch (activity.periodicType) {
+  switch (item.periodicType) {
     case 'daily':
       return 'Every day';
 
     case 'weekly': {
-      const days = activity.frequencyDays ?? [];
+      const days = item.frequencyDays ?? [];
       if (days.length === 0) return 'Weekly';
       if (days.length === 7) return 'Every day';
       if (days.length <= 3) return 'Every ' + days.map(d => DAY_SHORT[d]).join(', ');
@@ -73,22 +79,22 @@ export function frequencyLabel(activity: Activity): string {
     }
 
     case 'fortnightly': {
-      const w1 = (activity.frequencyDays ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
-      const w2 = (activity.frequencyDays2 ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
+      const w1 = (item.frequencyDays ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
+      const w2 = (item.frequencyDays2 ?? []).map(d => DAY_SHORT[d]).join(', ') || '—';
       return `Fortnightly · Wk1: ${w1} / Wk2: ${w2}`;
     }
 
     case 'monthly':
-      return `Monthly on the ${ordinal(activity.frequencyDayOfMonth)}`;
+      return `Monthly on the ${ordinal(item.frequencyDayOfMonth)}`;
 
     case 'quarterly': {
-      const months = QUARTER_MONTHS[activity.frequencyMonth] ?? QUARTER_MONTHS[0];
-      return `Quarterly · ${months.join('/')} ${ordinal(activity.frequencyDayOfMonth)}`;
+      const months = QUARTER_MONTHS[item.frequencyMonth] ?? QUARTER_MONTHS[0];
+      return `Quarterly · ${months.join('/')} ${ordinal(item.frequencyDayOfMonth)}`;
     }
 
     case 'yearly': {
-      const month = MONTH_SHORT[activity.frequencyMonth] ?? '';
-      return `Yearly · ${month} ${ordinal(activity.frequencyDayOfMonth)}`;
+      const month = MONTH_SHORT[item.frequencyMonth] ?? '';
+      return `Yearly · ${month} ${ordinal(item.frequencyDayOfMonth)}`;
     }
 
     default:

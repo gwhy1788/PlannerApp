@@ -1,65 +1,58 @@
-import { Activity, ActivityLog } from '../types';
+import { ScheduleItem, ItemLog } from '../types';
 import { toDateString, getDaysBetween } from './dates';
 
 function lastDayOfMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-export function isDueToday(activity: Activity): boolean {
-  const today = new Date();
-  const todayStr = toDateString(today);
-  const dow = today.getDay();
-  const dom = today.getDate();
-  const month = today.getMonth();
+export function isDueOnDate(item: ScheduleItem, dateStr: string): boolean {
+  const date = new Date(dateStr + 'T00:00:00');
+  const dow = date.getDay();
+  const dom = date.getDate();
+  const month = date.getMonth();
 
-  if (activity.frequencyType === 'once') {
-    return activity.targetDate === todayStr;
+  if (!item.isRecurring) {
+    return item.targetDate === dateStr;
   }
 
-  // periodic
-  switch (activity.periodicType) {
+  switch (item.periodicType) {
     case 'daily':
       return true;
 
     case 'weekly':
-      return (activity.frequencyDays ?? []).includes(dow);
+      return (item.frequencyDays ?? []).includes(dow);
 
     case 'fortnightly': {
-      // Determine which week of the 2-week cycle today falls in,
-      // anchored to the activity's creation date.
-      const anchorStr = activity.createdAt.split('T')[0];
-      const daysSinceAnchor = getDaysBetween(anchorStr, todayStr);
+      const anchorStr = item.createdAt.split('T')[0];
+      const daysSinceAnchor = getDaysBetween(anchorStr, dateStr);
       if (daysSinceAnchor < 0) return false;
       const weekInCycle = Math.floor(daysSinceAnchor / 7) % 2; // 0 = week 1, 1 = week 2
       const daysForThisWeek = weekInCycle === 0
-        ? (activity.frequencyDays ?? [])
-        : (activity.frequencyDays2 ?? []);
+        ? (item.frequencyDays ?? [])
+        : (item.frequencyDays2 ?? []);
       return daysForThisWeek.includes(dow);
     }
 
     case 'monthly': {
-      const target = activity.frequencyDayOfMonth === -1
-        ? lastDayOfMonth(today.getFullYear(), month)
-        : activity.frequencyDayOfMonth;
+      const target = item.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(date.getFullYear(), month)
+        : item.frequencyDayOfMonth;
       return dom === target;
     }
 
     case 'quarterly': {
-      // frequencyMonth: 0 = first month of quarter (Jan/Apr/Jul/Oct)
-      //                 1 = second month of quarter (Feb/May/Aug/Nov)
-      //                 2 = third month of quarter  (Mar/Jun/Sep/Dec)
-      if (month % 3 !== activity.frequencyMonth) return false;
-      const target = activity.frequencyDayOfMonth === -1
-        ? lastDayOfMonth(today.getFullYear(), month)
-        : activity.frequencyDayOfMonth;
+      if (month % 3 !== item.frequencyMonth) return false;
+      const target = item.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(date.getFullYear(), month)
+        : item.frequencyDayOfMonth;
       return dom === target;
     }
 
     case 'yearly': {
-      if (month !== activity.frequencyMonth) return false;
-      const target = activity.frequencyDayOfMonth === -1
-        ? lastDayOfMonth(today.getFullYear(), month)
-        : activity.frequencyDayOfMonth;
+      if (month !== item.frequencyMonth) return false;
+      const target = item.frequencyDayOfMonth === -1
+        ? lastDayOfMonth(date.getFullYear(), month)
+        : item.frequencyDayOfMonth;
       return dom === target;
     }
 
@@ -68,14 +61,18 @@ export function isDueToday(activity: Activity): boolean {
   }
 }
 
-export function calculateStreak(activity: Activity, logs: ActivityLog[]): number {
+export function isDueToday(item: ScheduleItem): boolean {
+  return isDueOnDate(item, toDateString(new Date()));
+}
+
+export function calculateStreak(item: ScheduleItem, logs: ItemLog[]): number {
   if (logs.length === 0) return 0;
 
   const logDates = new Set(logs.map(l => l.completedAt.split('T')[0]));
   const today = new Date();
   const todayStr = toDateString(today);
 
-  if (activity.frequencyType === 'periodic' && activity.periodicType === 'daily') {
+  if (item.isRecurring && item.periodicType === 'daily') {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = toDateString(yesterday);
@@ -94,8 +91,8 @@ export function calculateStreak(activity: Activity, logs: ActivityLog[]): number
     return streak;
   }
 
-  if (activity.frequencyType === 'periodic' && activity.periodicType === 'weekly') {
-    const days = activity.frequencyDays ?? [];
+  if (item.isRecurring && item.periodicType === 'weekly') {
+    const days = item.frequencyDays ?? [];
     if (days.length === 0) return 0;
     let streak = 0;
     const cur = new Date(today);
@@ -114,11 +111,11 @@ export function calculateStreak(activity: Activity, logs: ActivityLog[]): number
     return streak;
   }
 
-  // For all other types, return total completions as the streak indicator
+  // For all other types, return total completions
   return logs.length;
 }
 
-export function getCompletionDates(logs: ActivityLog[], days: number): string[] {
+export function getCompletionDates(logs: ItemLog[], days: number): string[] {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   return logs

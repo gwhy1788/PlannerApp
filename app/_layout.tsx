@@ -10,11 +10,15 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
-          name="activity/new"
+          name="item/new"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
-          name="activity/[id]"
+          name="item/[id]"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="settings/categories"
           options={{ animation: 'slide_from_right' }}
         />
       </Stack>
