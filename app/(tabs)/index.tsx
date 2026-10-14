@@ -20,7 +20,7 @@ import {
   getLogsForItem,
 } from '../../src/db/database';
 import { ScheduleItem, ItemLog, Category } from '../../src/types';
-import { ITEM_TYPE_CONFIG } from '../../src/constants/itemTypes';
+import { getItemTypeConfig } from '../../src/constants/itemTypes';
 import { isDueOnDate, calculateStreak } from '../../src/utils/streaks';
 import { toDateString, addDays, subtractDays, DAY_FULL, MONTH_SHORT } from '../../src/utils/dates';
 import { Colors } from '../../src/constants/theme';
@@ -173,7 +173,7 @@ export default function DayScreen() {
           </View>
         }
         renderItem={({ item: di }) => {
-          const typeConfig = ITEM_TYPE_CONFIG[di.item.itemType];
+          const typeConfig = getItemTypeConfig(di.item.itemType);
           const accentColor = di.item.color || typeConfig.color;
           const cat = di.category;
           return (

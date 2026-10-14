@@ -12,7 +12,7 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getItems, getCategories, getLogsForItem } from '../../src/db/database';
 import { ScheduleItem, ItemLog, Category } from '../../src/types';
-import { ITEM_TYPE_CONFIG } from '../../src/constants/itemTypes';
+import { getItemTypeConfig } from '../../src/constants/itemTypes';
 import { calculateStreak } from '../../src/utils/streaks';
 import { toDateString, subtractDays } from '../../src/utils/dates';
 import { Colors } from '../../src/constants/theme';
@@ -136,7 +136,7 @@ export default function StatsScreen() {
 
 function ItemStatCard({ stat }: { stat: ItemStat }) {
   const { item, category, streak, completions7, completions30, logs } = stat;
-  const typeConfig = ITEM_TYPE_CONFIG[item.itemType];
+  const typeConfig = getItemTypeConfig(item.itemType);
   const accentColor = item.color || typeConfig.color;
   const today = toDateString(new Date());
   const last14 = Array.from({ length: 14 }, (_, i) => subtractDays(today, 13 - i));

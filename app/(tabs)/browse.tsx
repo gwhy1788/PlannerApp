@@ -13,7 +13,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getItems, getCategories } from '../../src/db/database';
 import { ScheduleItem, Category, ItemType } from '../../src/types';
-import { ITEM_TYPE_CONFIG, ITEM_TYPE_ORDER } from '../../src/constants/itemTypes';
+import { getItemTypeConfig, ITEM_TYPE_ORDER } from '../../src/constants/itemTypes';
 import { frequencyLabel } from '../../src/utils/dates';
 import { Colors } from '../../src/constants/theme';
 
@@ -80,7 +80,7 @@ export default function BrowseScreen() {
         stickySectionHeadersEnabled={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderSectionHeader={({ section }) => {
-          const config = ITEM_TYPE_CONFIG[section.itemType];
+          const config = getItemTypeConfig(section.itemType);
           return (
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIconWrap, { backgroundColor: config.color + '22' }]}>
@@ -93,7 +93,7 @@ export default function BrowseScreen() {
         }}
         renderSectionFooter={({ section }) => {
           if (section.data.length > 0) return null;
-          const config = ITEM_TYPE_CONFIG[section.itemType];
+          const config = getItemTypeConfig(section.itemType);
           return (
             <TouchableOpacity
               style={styles.emptySection}
@@ -105,7 +105,7 @@ export default function BrowseScreen() {
           );
         }}
         renderItem={({ item }) => {
-          const config = ITEM_TYPE_CONFIG[item.itemType];
+          const config = getItemTypeConfig(item.itemType);
           const accentColor = item.color || config.color;
           const cat = catMap.get(item.categoryId) ?? FALLBACK_CATEGORY;
           return (

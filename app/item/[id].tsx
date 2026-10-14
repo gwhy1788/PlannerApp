@@ -21,7 +21,7 @@ import {
   softDeleteItem,
 } from '../../src/db/database';
 import { ScheduleItem, ItemLog, Category } from '../../src/types';
-import { ITEM_TYPE_CONFIG } from '../../src/constants/itemTypes';
+import { getItemTypeConfig } from '../../src/constants/itemTypes';
 import { calculateStreak } from '../../src/utils/streaks';
 import { frequencyLabel, toDateString, subtractDays, formatTime } from '../../src/utils/dates';
 import { Colors } from '../../src/constants/theme';
@@ -71,7 +71,7 @@ export default function ItemDetailScreen() {
 
   const confirmDelete = () => {
     Alert.alert(
-      `Delete ${item ? ITEM_TYPE_CONFIG[item.itemType].label : 'Item'}`,
+      `Delete ${item ? getItemTypeConfig(item.itemType).label : 'Item'}`,
       `Are you sure you want to delete "${item?.name}"? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -90,7 +90,7 @@ export default function ItemDetailScreen() {
 
   if (!item) return null;
 
-  const typeConfig = ITEM_TYPE_CONFIG[item.itemType];
+  const typeConfig = getItemTypeConfig(item.itemType);
   const accentColor = item.color || typeConfig.color;
   const today = toDateString(new Date());
   const last14 = Array.from({ length: 14 }, (_, i) => subtractDays(today, 13 - i));

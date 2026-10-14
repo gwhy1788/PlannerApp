@@ -3,14 +3,37 @@ import { ScheduleItem, ItemLog, ChecklistTask, ProjectTask, Category } from '../
 
 // ── Schema init ───────────────────────────────────────────────────────────────
 
+// Bump this whenever item types or table structure changes.
+// On mismatch all data tables are dropped and reseeded from scratch.
+const SCHEMA_VERSION = 2;
+
 export async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
 
-  // Drop old tables from the previous schema so we start clean
+  // Version table — created once, never dropped
   await db.execAsync(`
-    DROP TABLE IF EXISTS activity_logs;
-    DROP TABLE IF EXISTS activities;
+    CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)
   `);
+  const vRow = await db.getFirstAsync<{ version: number }>('SELECT version FROM schema_version LIMIT 1');
+  const currentVersion = vRow?.version ?? 0;
+
+  if (currentVersion < SCHEMA_VERSION) {
+    // Breaking schema change — wipe all data tables so stale rows can't crash the app
+    await db.execAsync(`
+      DROP TABLE IF EXISTS schedule_items;
+      DROP TABLE IF EXISTS item_logs;
+      DROP TABLE IF EXISTS checklist_tasks;
+      DROP TABLE IF EXISTS project_tasks;
+      DROP TABLE IF EXISTS categories;
+      DROP TABLE IF EXISTS activity_logs;
+      DROP TABLE IF EXISTS activities;
+    `);
+    if (vRow) {
+      await db.runAsync('UPDATE schema_version SET version = ?', [SCHEMA_VERSION]);
+    } else {
+      await db.runAsync('INSERT INTO schema_version (version) VALUES (?)', [SCHEMA_VERSION]);
+    }
+  }
 
   // Core tables
   await db.execAsync(`

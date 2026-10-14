@@ -68,6 +68,20 @@ export const ITEM_TYPE_CONFIG: Record<ItemType, ItemTypeConfig> = {
   },
 };
 
+const FALLBACK_CONFIG: ItemTypeConfig = {
+  label: 'Item',
+  pluralLabel: 'Items',
+  icon: 'ellipse-outline',
+  color: '#6B7280',
+  description: '',
+  isRecurring: false,
+};
+
+// Safe accessor — returns a fallback instead of crashing on unknown type strings
+export function getItemTypeConfig(type: string): ItemTypeConfig {
+  return ITEM_TYPE_CONFIG[type as ItemType] ?? FALLBACK_CONFIG;
+}
+
 export const ITEM_TYPE_ORDER: ItemType[] = [
   'activity',
   'task',
