@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getCategories, upsertItem } from '../../src/db/database';
+import { getCategories, getItem, upsertItem } from '../../src/db/database';
 import { ScheduleItem, Category, PeriodicType, ItemType } from '../../src/types';
 import { ITEM_TYPE_CONFIG, ITEM_TYPE_ORDER } from '../../src/constants/itemTypes';
 import { Colors, CATEGORY_COLORS, ACTIVITY_ICONS } from '../../src/constants/theme';
@@ -41,22 +41,26 @@ const QUARTER_LABELS = [
   '3rd month (Mar/Jun/Sep/Dec)',
 ];
 
-// Types that have a full form in Phase 1
 const SUPPORTED_TYPES: ItemType[] = ['activity', 'task', 'habit'];
 
 export default function NewItemScreen() {
   const db = useSQLiteContext();
-  const params = useLocalSearchParams<{ type?: string }>();
+  const params = useLocalSearchParams<{ type?: string; id?: string }>();
+
+  const editId = params.id ?? null;
+  const isEdit = !!editId;
+  const editCreatedAt = useRef<string | null>(null);
 
   const initialType = (params.type as ItemType | undefined) ?? 'habit';
   const [selectedType, setSelectedType] = useState<ItemType>(initialType);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [topCategories, setTopCategories] = useState<Category[]>([]);
 
   // Basic fields
   const [name, setName]               = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId]   = useState('');
+  const [subcategoryId, setSubcategoryId] = useState('');
   const [color, setColor]             = useState(Colors.primary);
   const [icon, setIcon]               = useState('checkmark-circle-outline');
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -65,38 +69,84 @@ export default function NewItemScreen() {
   });
 
   // Frequency
-  const [periodicType, setPeriodicType]   = useState<PeriodicType>('daily');
-  const [weeklyDays, setWeeklyDays]       = useState<number[]>([]);
+  const [periodicType, setPeriodicType]     = useState<PeriodicType>('daily');
+  const [weeklyDays, setWeeklyDays]         = useState<number[]>([]);
   const [fortnightWeek1, setFortnightWeek1] = useState<number[]>([]);
   const [fortnightWeek2, setFortnightWeek2] = useState<number[]>([]);
-  const [dayOfMonth, setDayOfMonth]       = useState<number>(1);
-  const [quarterMonth, setQuarterMonth]   = useState<number>(0);
-  const [yearlyMonth, setYearlyMonth]     = useState<number>(0);
-  const [targetDate, setTargetDate]       = useState<Date | null>(null);
+  const [dayOfMonth, setDayOfMonth]         = useState<number>(1);
+  const [quarterMonth, setQuarterMonth]     = useState<number>(0);
+  const [yearlyMonth, setYearlyMonth]       = useState<number>(0);
+  const [targetDate, setTargetDate]         = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Load categories
   useEffect(() => {
     getCategories(db).then(cats => {
-      setCategories(cats);
+      setAllCategories(cats);
       const tops = cats.filter(c => c.parentId === '');
       setTopCategories(tops);
-      if (tops.length > 0) {
+      // Only set defaults when creating new (edit will overwrite via item load)
+      if (!isEdit && tops.length > 0) {
         setCategoryId(tops[0].id);
-        setColor(tops[0].color);
       }
     });
   }, [db]);
 
-  // Update icon default when type changes
+  // Auto-update icon/color when type changes — only when creating new
   useEffect(() => {
+    if (isEdit) return;
     const config = ITEM_TYPE_CONFIG[selectedType];
     setIcon(config.icon);
     setColor(config.color);
   }, [selectedType]);
 
+  // Load existing item when editing
+  useEffect(() => {
+    if (!editId) return;
+    getItem(db, editId).then(item => {
+      if (!item) return;
+      editCreatedAt.current = item.createdAt;
+      setSelectedType(item.itemType);
+      setName(item.name);
+      setDescription(item.description);
+      setCategoryId(item.categoryId);
+      setSubcategoryId(item.subcategoryId);
+      setColor(item.color);
+      setIcon(item.icon);
+
+      if (item.reminderTime) {
+        setReminderEnabled(true);
+        const [h, m] = item.reminderTime.split(':').map(Number);
+        const d = new Date(); d.setHours(h, m, 0, 0);
+        setReminderDate(d);
+      }
+
+      setPeriodicType(item.periodicType);
+      setDayOfMonth(item.frequencyDayOfMonth);
+
+      if (item.periodicType === 'weekly') {
+        setWeeklyDays(item.frequencyDays);
+      } else if (item.periodicType === 'fortnightly') {
+        setFortnightWeek1(item.frequencyDays);
+        setFortnightWeek2(item.frequencyDays2);
+      } else if (item.periodicType === 'quarterly') {
+        setQuarterMonth(item.frequencyMonth);
+      } else if (item.periodicType === 'yearly') {
+        setYearlyMonth(item.frequencyMonth);
+      }
+
+      if (!item.isRecurring && item.targetDate) {
+        setTargetDate(new Date(item.targetDate + 'T00:00:00'));
+      }
+    });
+  }, [editId, db]);
+
   const isRecurring = ITEM_TYPE_CONFIG[selectedType].isRecurring;
   const isSupported = SUPPORTED_TYPES.includes(selectedType);
   const typeConfig = ITEM_TYPE_CONFIG[selectedType];
+
+  // Subcategories for the currently selected top-level category
+  const subcategories = allCategories.filter(c => c.parentId === categoryId);
 
   const validate = (): string | null => {
     if (!name.trim()) return 'Please enter a name.';
@@ -116,16 +166,16 @@ export default function NewItemScreen() {
       : '';
 
     const item: ScheduleItem = {
-      id: makeId(selectedType.slice(0, 4)),
+      id: editId ?? makeId(selectedType.slice(0, 4)),
       itemType: selectedType,
       name: name.trim(),
       description: description.trim(),
       categoryId,
-      subcategoryId: '',
+      subcategoryId,
       isRecurring,
       periodicType,
-      frequencyDays: periodicType === 'weekly' ? weeklyDays
-                   : periodicType === 'fortnightly' ? fortnightWeek1
+      frequencyDays: periodicType === 'weekly'       ? weeklyDays
+                   : periodicType === 'fortnightly'  ? fortnightWeek1
                    : [],
       frequencyDays2: periodicType === 'fortnightly' ? fortnightWeek2 : [],
       frequencyDayOfMonth: dayOfMonth,
@@ -140,7 +190,7 @@ export default function NewItemScreen() {
       isActive: true,
       isCompleted: false,
       completedAt: '',
-      createdAt: new Date().toISOString(),
+      createdAt: editCreatedAt.current ?? new Date().toISOString(),
     };
 
     await upsertItem(db, item);
@@ -154,36 +204,39 @@ export default function NewItemScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New {typeConfig.label}</Text>
-          {isSupported && (
+          <Text style={styles.headerTitle}>{isEdit ? `Edit ${typeConfig.label}` : `New ${typeConfig.label}`}</Text>
+          {isSupported ? (
             <TouchableOpacity onPress={save} style={[styles.saveBtn, { backgroundColor: color }]}>
-              <Text style={styles.saveText}>Save</Text>
+              <Text style={styles.saveText}>{isEdit ? 'Update' : 'Save'}</Text>
             </TouchableOpacity>
+          ) : (
+            <View style={{ width: 64 }} />
           )}
-          {!isSupported && <View style={{ width: 64 }} />}
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-          {/* ── Type Selector ── */}
-          <Field label="Type">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {ITEM_TYPE_ORDER.map(type => {
-                const cfg = ITEM_TYPE_CONFIG[type];
-                const active = selectedType === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.typeChip, active && { backgroundColor: cfg.color, borderColor: cfg.color }]}
-                    onPress={() => setSelectedType(type)}
-                  >
-                    <Ionicons name={cfg.icon as any} size={14} color={active ? '#fff' : Colors.textMuted} />
-                    <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{cfg.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </Field>
+          {/* ── Type Selector — hidden when editing ── */}
+          {!isEdit && (
+            <Field label="Type">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {ITEM_TYPE_ORDER.map(type => {
+                  const cfg = ITEM_TYPE_CONFIG[type];
+                  const active = selectedType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.typeChip, active && { backgroundColor: cfg.color, borderColor: cfg.color }]}
+                      onPress={() => setSelectedType(type)}
+                    >
+                      <Ionicons name={cfg.icon as any} size={14} color={active ? '#fff' : Colors.textMuted} />
+                      <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{cfg.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Field>
+          )}
 
           {/* Unsupported type placeholder */}
           {!isSupported && (
@@ -206,7 +259,7 @@ export default function NewItemScreen() {
                   placeholderTextColor={Colors.textMuted}
                   value={name}
                   onChangeText={setName}
-                  autoFocus
+                  autoFocus={!isEdit}
                 />
               </Field>
 
@@ -223,26 +276,45 @@ export default function NewItemScreen() {
                 />
               </Field>
 
-              {/* ── Category ── */}
+              {/* ── Category + Subcategory ── */}
               <Field label="Category">
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   {topCategories.map(cat => (
                     <TouchableOpacity
                       key={cat.id}
                       style={[styles.chip, categoryId === cat.id && { backgroundColor: cat.color, borderColor: cat.color }]}
-                      onPress={() => { setCategoryId(cat.id); }}
+                      onPress={() => { setCategoryId(cat.id); setSubcategoryId(''); }}
                     >
                       <Ionicons name={cat.icon as any} size={14} color={categoryId === cat.id ? '#fff' : Colors.textMuted} />
                       <Text style={[styles.chipText, categoryId === cat.id && styles.chipTextActive]}>{cat.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+
+                {subcategories.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.subChip, subcategoryId === '' && styles.subChipActive]}
+                      onPress={() => setSubcategoryId('')}
+                    >
+                      <Text style={[styles.subChipText, subcategoryId === '' && styles.subChipTextActive]}>General</Text>
+                    </TouchableOpacity>
+                    {subcategories.map(sub => (
+                      <TouchableOpacity
+                        key={sub.id}
+                        style={[styles.subChip, subcategoryId === sub.id && styles.subChipActive]}
+                        onPress={() => setSubcategoryId(sub.id)}
+                      >
+                        <Text style={[styles.subChipText, subcategoryId === sub.id && styles.subChipTextActive]}>{sub.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
               </Field>
 
               {/* ── Frequency / Schedule ── */}
               {isRecurring ? (
                 <Field label="Frequency">
-                  {/* Periodic sub-type chips */}
                   <View style={styles.periodicChips}>
                     {PERIODIC_TYPES.map(({ key, label }) => (
                       <TouchableOpacity
@@ -257,7 +329,6 @@ export default function NewItemScreen() {
                     ))}
                   </View>
 
-                  {/* Daily */}
                   {periodicType === 'daily' && (
                     <View style={styles.configNote}>
                       <Ionicons name="checkmark-circle-outline" size={16} color={Colors.success} />
@@ -265,7 +336,6 @@ export default function NewItemScreen() {
                     </View>
                   )}
 
-                  {/* Weekly */}
                   {periodicType === 'weekly' && (
                     <View style={styles.configBlock}>
                       <Text style={styles.configLabel}>Which days?</Text>
@@ -283,7 +353,6 @@ export default function NewItemScreen() {
                     </View>
                   )}
 
-                  {/* Fortnightly */}
                   {periodicType === 'fortnightly' && (
                     <View style={styles.configBlock}>
                       <View style={styles.fortnightWeekHeader}>
@@ -303,7 +372,6 @@ export default function NewItemScreen() {
                           </TouchableOpacity>
                         ))}
                       </View>
-
                       <View style={[styles.fortnightWeekHeader, { marginTop: 12 }]}>
                         <View style={[styles.weekLabel, { backgroundColor: color + '22' }]}>
                           <Text style={[styles.weekLabelText, { color }]}>Week 2</Text>
@@ -323,12 +391,11 @@ export default function NewItemScreen() {
                       </View>
                       <View style={styles.configNote}>
                         <Ionicons name="information-circle-outline" size={14} color={Colors.textMuted} />
-                        <Text style={styles.configNoteText}>2-week cycle starts from the day you save this item</Text>
+                        <Text style={styles.configNoteText}>2-week cycle anchored to original creation date</Text>
                       </View>
                     </View>
                   )}
 
-                  {/* Monthly */}
                   {periodicType === 'monthly' && (
                     <View style={styles.configBlock}>
                       <Text style={styles.configLabel}>Which day of the month?</Text>
@@ -336,7 +403,6 @@ export default function NewItemScreen() {
                     </View>
                   )}
 
-                  {/* Quarterly */}
                   {periodicType === 'quarterly' && (
                     <View style={styles.configBlock}>
                       <Text style={styles.configLabel}>Which month in the quarter?</Text>
@@ -357,7 +423,6 @@ export default function NewItemScreen() {
                     </View>
                   )}
 
-                  {/* Yearly */}
                   {periodicType === 'yearly' && (
                     <View style={styles.configBlock}>
                       <Text style={styles.configLabel}>Which month?</Text>
@@ -378,7 +443,6 @@ export default function NewItemScreen() {
                   )}
                 </Field>
               ) : (
-                /* One-off date picker */
                 <Field label="Target Date">
                   <TouchableOpacity
                     style={styles.dateRow}
@@ -397,7 +461,6 @@ export default function NewItemScreen() {
                       value={targetDate ?? new Date()}
                       mode="date"
                       display="inline"
-                      minimumDate={new Date()}
                       accentColor={color}
                       onChange={(_event, date) => {
                         if (date) { setTargetDate(date); setShowDatePicker(false); }
@@ -552,10 +615,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.background, borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 8,
-    marginRight: 8, borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: Colors.border,
   },
   chipText: { fontSize: 13, color: Colors.textMuted, fontWeight: '500' },
   chipTextActive: { color: Colors.white },
+
+  subChip: {
+    backgroundColor: Colors.background, borderRadius: 16,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  subChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
+  subChipText: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' },
+  subChipTextActive: { color: Colors.white, fontWeight: '600' },
 
   comingSoon: {
     alignItems: 'center', padding: 40, gap: 10,
@@ -634,7 +706,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border,
   },
   dateLabelText: { flex: 1, fontSize: 15, color: Colors.textMuted },
-  colorRow: { flexDirection: 'row', gap: 10 },
+  colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   colorDot: { width: 32, height: 32, borderRadius: 16 },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
   iconBtn: {

@@ -36,6 +36,7 @@ export default function ItemDetailScreen() {
 
   const [item, setItem] = useState<ScheduleItem | null>(null);
   const [category, setCategory] = useState<Category>(FALLBACK_CAT);
+  const [subcategory, setSubcategory] = useState<Category | null>(null);
   const [logs, setLogs] = useState<ItemLog[]>([]);
   const [todayLog, setTodayLog] = useState<ItemLog | null>(null);
   const [streak, setStreak] = useState(0);
@@ -52,6 +53,7 @@ export default function ItemDetailScreen() {
 
     setItem(loaded);
     setCategory(catMap.get(loaded.categoryId) ?? FALLBACK_CAT);
+    setSubcategory(loaded.subcategoryId ? (catMap.get(loaded.subcategoryId) ?? null) : null);
     setLogs(itemLogs);
     setTodayLog(tLog);
     setStreak(calculateStreak(loaded, itemLogs));
@@ -105,6 +107,13 @@ export default function ItemDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/item/new', params: { id: item.id, type: item.itemType } })}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.headerBtn}
+        >
+          <Ionicons name="pencil-outline" size={20} color={Colors.primary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={confirmDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="trash-outline" size={22} color={Colors.danger} />
         </TouchableOpacity>
@@ -190,7 +199,14 @@ export default function ItemDetailScreen() {
           <Text style={styles.sectionTitle}>Details</Text>
           <View style={styles.detailCard}>
             <DetailRow icon="refresh-outline" label="Schedule" value={frequencyLabel(item)} />
-            {category.id && <DetailRow icon="folder-outline" label="Category" value={category.name} color={category.color} />}
+            {category.id && (
+              <DetailRow
+                icon="folder-outline"
+                label="Category"
+                value={subcategory ? `${category.name}  ›  ${subcategory.name}` : category.name}
+                color={category.color}
+              />
+            )}
             {item.reminderTime && <DetailRow icon="alarm-outline" label="Reminder" value={formatTime(item.reminderTime)} />}
             {item.targetDate && <DetailRow icon="calendar-outline" label="Target date" value={item.targetDate} />}
           </View>
@@ -235,9 +251,10 @@ function DetailRow({ icon, label, value, color }: {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 16,
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8,
   },
+  headerBtn: { padding: 2 },
   scroll: { padding: 20, gap: 16 },
   hero: { alignItems: 'center', gap: 8, paddingVertical: 8 },
   heroIcon: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },

@@ -22,12 +22,13 @@ import {
 import { ScheduleItem, ItemLog, Category } from '../../src/types';
 import { getItemTypeConfig } from '../../src/constants/itemTypes';
 import { isDueOnDate, calculateStreak } from '../../src/utils/streaks';
-import { toDateString, addDays, subtractDays, DAY_FULL, MONTH_SHORT } from '../../src/utils/dates';
+import { toDateString, addDays, subtractDays, DAY_FULL, MONTH_SHORT, formatTime } from '../../src/utils/dates';
 import { Colors } from '../../src/constants/theme';
 
 interface DayItem {
   item: ScheduleItem;
   category: Category | null;
+  subcategory: Category | null;
   isCompleted: boolean;
   log: ItemLog | null;
   streak: number;
@@ -76,6 +77,7 @@ export default function DayScreen() {
       results.push({
         item,
         category: catMap.get(item.categoryId) ?? FALLBACK_CATEGORY,
+        subcategory: item.subcategoryId ? (catMap.get(item.subcategoryId) ?? null) : null,
         isCompleted: !!log,
         log,
         streak,
@@ -205,9 +207,17 @@ export default function DayScreen() {
                   {cat && cat.id !== '' && (
                     <>
                       <View style={[styles.catDot, { backgroundColor: cat.color }]} />
-                      <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
+                      <Text style={styles.catName} numberOfLines={1}>
+                        {di.subcategory ? di.subcategory.name : cat.name}
+                      </Text>
                     </>
                   )}
+                  {di.item.reminderTime ? (
+                    <View style={styles.reminderChip}>
+                      <Ionicons name="alarm-outline" size={10} color={Colors.textMuted} />
+                      <Text style={styles.reminderChipText}>{formatTime(di.item.reminderTime)}</Text>
+                    </View>
+                  ) : null}
                   {di.streak > 1 && (
                     <View style={styles.streakBadge}>
                       <Text style={styles.streakText}>🔥 {di.streak}</Text>
@@ -281,6 +291,8 @@ const styles = StyleSheet.create({
   catName: { fontSize: 12, color: Colors.textMuted, maxWidth: 100 },
   streakBadge: { backgroundColor: '#FFF7ED', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   streakText: { fontSize: 11, fontWeight: '600' },
+  reminderChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  reminderChipText: { fontSize: 11, color: Colors.textMuted },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: Colors.text, marginTop: 8 },
   emptySubtitle: { fontSize: 14, color: Colors.textMuted },
