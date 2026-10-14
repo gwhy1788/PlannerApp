@@ -1,12 +1,11 @@
 // ── Item Types ────────────────────────────────────────────────────────────────
 
 export type ItemType =
-  | 'major_activity'
-  | 'minor_activity'
-  | 'repeating_task'
+  | 'activity'
+  | 'task'
+  | 'habit'
   | 'event'
   | 'duty'
-  | 'habit'
   | 'checklist'
   | 'project';
 

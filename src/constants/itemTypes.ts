@@ -10,28 +10,28 @@ export interface ItemTypeConfig {
 }
 
 export const ITEM_TYPE_CONFIG: Record<ItemType, ItemTypeConfig> = {
-  major_activity: {
-    label: 'Major Activity',
-    pluralLabel: 'Major Activities',
+  activity: {
+    label: 'Activity',
+    pluralLabel: 'Activities',
     icon: 'star-outline',
     color: '#8B5CF6',
-    description: 'Significant recurring activities like sport, classes, or big commitments',
+    description: 'Recurring activities like sport, classes, or regular commitments',
     isRecurring: true,
   },
-  minor_activity: {
-    label: 'Minor Activity',
-    pluralLabel: 'Minor Activities',
-    icon: 'ellipse-outline',
-    color: '#3B82F6',
-    description: 'Smaller recurring activities like errands, appointments, or routines',
-    isRecurring: true,
-  },
-  repeating_task: {
-    label: 'Repeating Task',
-    pluralLabel: 'Repeating Tasks',
+  task: {
+    label: 'Task',
+    pluralLabel: 'Tasks',
     icon: 'refresh-outline',
     color: '#F59E0B',
     description: 'Tasks that repeat on a schedule, like paying bills or filing reports',
+    isRecurring: true,
+  },
+  habit: {
+    label: 'Habit',
+    pluralLabel: 'Habits',
+    icon: 'checkmark-circle-outline',
+    color: '#5B5FEF',
+    description: 'Daily or regular habits you want to build and track with streaks',
     isRecurring: true,
   },
   event: {
@@ -49,14 +49,6 @@ export const ITEM_TYPE_CONFIG: Record<ItemType, ItemTypeConfig> = {
     color: '#10B981',
     description: 'Obligations or responsibilities that appear on your schedule',
     isRecurring: false,
-  },
-  habit: {
-    label: 'Habit',
-    pluralLabel: 'Habits',
-    icon: 'checkmark-circle-outline',
-    color: '#5B5FEF',
-    description: 'Daily or regular habits you want to build and track with streaks',
-    isRecurring: true,
   },
   checklist: {
     label: 'Checklist',
@@ -77,10 +69,9 @@ export const ITEM_TYPE_CONFIG: Record<ItemType, ItemTypeConfig> = {
 };
 
 export const ITEM_TYPE_ORDER: ItemType[] = [
+  'activity',
+  'task',
   'habit',
-  'major_activity',
-  'minor_activity',
-  'repeating_task',
   'event',
   'duty',
   'checklist',

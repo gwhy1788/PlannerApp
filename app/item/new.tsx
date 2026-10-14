@@ -42,7 +42,7 @@ const QUARTER_LABELS = [
 ];
 
 // Types that have a full form in Phase 1
-const SUPPORTED_TYPES: ItemType[] = ['habit', 'major_activity', 'minor_activity', 'repeating_task'];
+const SUPPORTED_TYPES: ItemType[] = ['activity', 'task', 'habit'];
 
 export default function NewItemScreen() {
   const db = useSQLiteContext();
@@ -202,7 +202,7 @@ export default function NewItemScreen() {
               <Field label="Name">
                 <TextInput
                   style={styles.input}
-                  placeholder={`e.g. ${selectedType === 'habit' ? 'Morning run' : selectedType === 'repeating_task' ? 'Pay bills' : 'Weekly yoga class'}`}
+                  placeholder={`e.g. ${selectedType === 'habit' ? 'Morning run' : selectedType === 'task' ? 'Pay bills' : 'Weekly yoga class'}`}
                   placeholderTextColor={Colors.textMuted}
                   value={name}
                   onChangeText={setName}
